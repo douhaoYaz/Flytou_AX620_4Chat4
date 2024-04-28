@@ -1,0 +1,23 @@
+{
+    // "makefile.makeArgs": [
+    //     "p=AX620_demo"
+    // ],
+    "makefile.configurations":[
+        {
+            "makeArgs": [
+                "p=AX620_demo"
+            ],
+            "name": "Unnamed configuration 1"
+        }
+    ],
+    "makefile.makefilePath": "${workspaceFolder}/Makefile",  // 指定Makefile的位置
+    "makefile.extensionOutputFolder": "${workspaceFolder}/.vscode",  // 指定扩展的输出文件夹
+    // "makefile.buildDirectory": "${workspaceFolder}/build",  // 设置构建目录（如果构建输出被重定向）
+    "makefile.configureOnOpen": true,  // 打开项目时自动配置
+
+    "C_Cpp.default.compilerPath": "/usr/local/ARM-toolchain/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc",
+    "C_Cpp.intelliSenseMode": "gcc-x64",
+    "C_Cpp.default.cStandard": "gnu11",
+    "C_Cpp.default.cppStandard": "gnu++14"
+  }
+  

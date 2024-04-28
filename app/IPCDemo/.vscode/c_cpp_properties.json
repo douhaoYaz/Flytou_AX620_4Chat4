@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/../../msp/out/include",
+                "${workspaceFolder}/../../third-party/openssl/include",
+                // "${workspaceFolder}/../../third-party/tinyxml2/include",
+                "${workspaceFolder}/../../third-party/opencv-arm-linux/include/opencv4/opencv2/",
+                "/usr/local/ARM-toolchain/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/local/ARM-toolchain/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin//arm-linux-gnueabihf-gcc",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "gcc-x64",
+            "configurationProvider": "ms-vscode.makefile-tools"
+        }
+    ],
+    "version": 4
+}

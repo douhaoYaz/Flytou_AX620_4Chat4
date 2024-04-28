@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build AX620_demo",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "p=AX620_demo"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}
