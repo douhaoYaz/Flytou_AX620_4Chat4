@@ -44,6 +44,9 @@
 #include "Scd.h"
 #include "HotBalance.h"
 
+// add opencv by Yang
+#include <opencv2/opencv.hpp>
+
 using namespace std;
 
 #define MAIN "MAIN"
@@ -103,6 +106,8 @@ CDetectStage g_stageDetect;
 CTrackCropStage g_stageTrackCrop;
 AXRtspServer g_rtspServer;
 CWebServer g_webserver;
+
+cv::Mat mat;    // 测试OpenCV
 
 static AX_VOID* ThreadCheckAutoSleep(AX_VOID *__this)
 {
@@ -282,6 +287,16 @@ int main(int argc, const char *argv[])
     RESULT_CHECK(g_camera.Start());
 
     CHotBalance::GetInstance()->Start(CStageOptionHelper().GetInstance()->GetHotBalanceAttr().tConfig);
+
+    // 试试在这里插入测试OpenCV能否正常使用的语句
+    // cv::Mat mat = cv::imread("");
+    // if(mat.empty()){
+    //     // 调用log来输出错误信息来测试
+    //     LOG_M(MAIN, "We can successfully invoke OpenCV! But failed to read image.");
+    // }
+    // else{
+    //     LOG_M(MAIN, "We can successfully invoke OpenCV! And succeed to read image.");
+    // }
 
     CTimeUtils::msSleep(100);
     LOG_M(MAIN, "Preview the video using URL: <<<<< http://%s:8080 >>>>>", szIP);
