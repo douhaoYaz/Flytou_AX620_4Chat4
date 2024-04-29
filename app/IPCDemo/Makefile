@@ -73,7 +73,7 @@ CINCLUDE 		:= 	-I$(SRC_PATH) \
 					-I$(SRC_PATH)/utils/OsdHandler \
 					-I$(SRC_PATH)/utils/OsdHandler/freetype \
 					-I$(OUT_PATH)/include/ai_kit \
-					-I$(CV_PATH)/include/opencv4/opencv2
+					-I$(CV_PATH)/include/opencv4
 # added by Yang	:opencv库
 
 # exec
@@ -81,7 +81,7 @@ TARGET			:= $(BIN_PATH)/$(MOD_NAME)
 
 
 # build flags
-CFLAGS			:= --std=c++11 -fstack-protector -Wall -Wl,-rpath-link=$(LIB_PATH):$(BIN_PATH)/lib:$(SRC_PATH)/lib:$(JSONCPP_PATH)/lib:$(TINYXML_PATH)/lib:$(CV_PATH)/lib
+CFLAGS			:= --std=c++11 -fstack-protector -Wall -Wl,-rpath-link=$(LIB_PATH):$(BIN_PATH)/lib:$(SRC_PATH)/lib:$(JSONCPP_PATH)/lib:$(TINYXML_PATH)/lib:$(CV_PATH)/lib:$(CV_PATH)/lib/opencv4/3rdparty
 # 													   -Wl,-rpath-link=…………：这是一个链接选项（通过-Wl,前缀传递给链接器），指定在运行时解析动态库的路径。
 # CFLAGS变量通常用于指定编译器在编译源代码文件时应该使用的选项。这包括优化级别、警告级别、语言标准等。在这里的CFLAGS还包含用于链接器的选项
 
@@ -133,8 +133,9 @@ CLIB			+= -lax_nt_stream
 CLIB			+= -lax_nt_ctrl
 CLIB            += -l:libfreetype.a
 CLIB			+= -llens_dciris
-# added by Yang
 CLIB			+= -L$(CV_PATH)/lib -lopencv_core -lopencv_highgui -lopencv_imgcodecs -lopencv_imgproc -lopencv_videoio
+CLIB			+= -L$(CV_PATH)/lib/opencv4/3rdparty -littnotify -llibjpeg-turbo -llibopenjp2 -llibpng -llibtiff -llibwebp -lzlib
+# opencv added by Yang
 
 # link
 LINK = $(CPP)
