@@ -133,7 +133,9 @@ CLIB			+= -lax_nt_stream
 CLIB			+= -lax_nt_ctrl
 CLIB            += -l:libfreetype.a
 CLIB			+= -llens_dciris
-CLIB			+= -L$(CV_PATH)/lib -lopencv_core -lopencv_highgui -lopencv_imgcodecs -lopencv_imgproc -lopencv_videoio
+# CLIB			+= -L$(CV_PATH)/lib -lopencv_core -lopencv_highgui -lopencv_imgcodecs -lopencv_imgproc -lopencv_videoio
+# CLIB			+= -L$(CV_PATH)/lib -l:libopencv_core.a -l:libopencv_highgui.a -l:libopencv_imgcodecs.a -l:libopencv_imgproc.a -l:libopencv_videoio.a
+CLIB			+= -L$(CV_PATH)/lib -lopencv_imgcodecs -lopencv_imgproc -lopencv_highgui -lopencv_videoio -lopencv_core
 CLIB			+= -L$(CV_PATH)/lib/opencv4/3rdparty -littnotify -llibjpeg-turbo -llibopenjp2 -llibpng -llibtiff -llibwebp -lzlib
 # opencv added by Yang
 
