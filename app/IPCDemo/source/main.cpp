@@ -107,20 +107,21 @@ CTrackCropStage g_stageTrackCrop;
 AXRtspServer g_rtspServer;
 CWebServer g_webserver;
 
-cv::Mat mat;    // 测试OpenCV
+// cv::Mat mat;    // 测试OpenCV
 
+// 这个函数主要用于在视频流的帧产生速率降低到某一阈值时自动将系统置于低功耗状态，以节省电能或其他资源
 static AX_VOID* ThreadCheckAutoSleep(AX_VOID *__this)
 {
     prctl(PR_SET_NAME, "IPC_MAIN_CheckAutoSleep");
     AX_U64 u64LastSleepFameNum = 0;
     while (gRunning) {
-        AX_U64 u64Venc0SeqNum = gOptions.GetVenc0SeqNum();
-        const AX_U64 u64NowFameNum = u64Venc0SeqNum - u64LastSleepFameNum;
-        const AX_U64 u64MaxFameNum = gOptions.GetAutoSleepFrameNum();
+        AX_U64 u64Venc0SeqNum = gOptions.GetVenc0SeqNum();      // 获取当前的视频编码器序列号
+        const AX_U64 u64NowFameNum = u64Venc0SeqNum - u64LastSleepFameNum;  // 计算从上次休眠后产生的帧数
+        const AX_U64 u64MaxFameNum = gOptions.GetAutoSleepFrameNum();   // 自动休眠的帧数阈值
 
         if ( u64MaxFameNum > 0 && u64MaxFameNum < u64NowFameNum) {
             LOG_M(MAIN, "Call AX_SYS_Sleep %llu", u64Venc0SeqNum);
-            g_isSleeped = AX_TRUE;
+            g_isSleeped = AX_TRUE;                                      // 使用全局变量来标记系统是否处于休眠状态
             AX_SYS_Sleep();
             u64LastSleepFameNum = u64Venc0SeqNum;
             g_isSleeped = AX_FALSE;
@@ -133,12 +134,15 @@ static AX_VOID* ThreadCheckAutoSleep(AX_VOID *__this)
 
 int main(int argc, const char *argv[])
 {
+    cv::Mat mat = cv::imread("");
     // 这个搞不懂什么玩意
     AX_MTRACE_ENTER(ipcdemo);
     get_sdk_version();
 
+    // SIGINT（程序中断信号）通常是由用户在命令行按下Ctrl+C触发的。在此代码中，SIGINT信号与自定义的exit_handler函数关联
     signal(SIGINT, exit_handler);
     ignore_sig_pipe();
+    // 代码中的信号处理机制是为了确保程序在接收到中断或异常情况时能够安全、可控地终止运行，同时处理一些特定的信号导致的潜在问题。这是任何需要长时间运行或处理外部输入的程序的重要组成部分，尤其是在多线程或网络通信环境下
 
     if (!gOptions.ParseArgs(argc, (const AX_CHAR **)argv)) {
         printf("Parse args error.\n");
@@ -168,13 +172,13 @@ int main(int argc, const char *argv[])
         _exit(1);
     }
 
-    // 应该是打印一些Camera、IVPS、VENC等信息
+    // 应该是打印一些Camera、IVPS、VENC等信息，并new一个 CPrintHelper::PrintThreadFunc 线程
     gPrintHelper.Start();
 
     // 定义媒体子系统视频缓存池配置结构体 tVBConfig，其中公共缓存池数组置为0？
     AX_POOL_FLOORPLAN_T tVBConfig = {0};
     AX_U8 nPoolCount = 0;
-    thread* pThreadCheckAutoSleep = nullptr;
+    thread* pThreadCheckAutoSleep = nullptr;        // 自动休眠线程
     AX_U32 nRunTimes = 0;
 
     //Check whether support EIS
@@ -234,10 +238,11 @@ int main(int argc, const char *argv[])
     }
 
     /* Init camera */
+    // 调用 CBaseSensor::Init()函数，初始化Sensor并配置所需属性
     RESULT_CHECK(g_camera.Init(&tVBConfig, nPoolCount, AX_SENSOR_ID, AX_DEV_SOURCE_SNS_ID, AX_PIPE_ID));
 
     AX_VENC_MOD_ATTR_S tModAttr;        // 编码器模块属性结构体
-    tModAttr.enVencType = VENC_MULTI_ENCODER;   // 编码模块类型
+    tModAttr.enVencType = VENC_MULTI_ENCODER;   // 编码模块类型，同时使用 Video 和 JPEG 编码协议
     AX_VENC_Init(&tModAttr);
 
     /* FillCameraAttr should be invoked before detect state start */
@@ -284,19 +289,19 @@ int main(int argc, const char *argv[])
 
     // 猜测这里就是正式的开始
     RESULT_CHECK(g_stageIVPS.Start(AX_TRUE));
-    RESULT_CHECK(g_camera.Start());
+    RESULT_CHECK(g_camera.Start());             // 创建一个 RtpThreadFunc 线程来使能出流, 开启 ITP 唤醒线程，以通知 ITP 出流
 
     CHotBalance::GetInstance()->Start(CStageOptionHelper().GetInstance()->GetHotBalanceAttr().tConfig);
 
     // 试试在这里插入测试OpenCV能否正常使用的语句
-    // cv::Mat mat = cv::imread("");
-    // if(mat.empty()){
-    //     // 调用log来输出错误信息来测试
-    //     LOG_M(MAIN, "We can successfully invoke OpenCV! But failed to read image.");
-    // }
-    // else{
-    //     LOG_M(MAIN, "We can successfully invoke OpenCV! And succeed to read image.");
-    // }
+    //cv::Mat mat = cv::imread("");
+    if(mat.empty()){
+        // 调用log来输出错误信息来测试
+        LOG_M(MAIN, "We can successfully invoke OpenCV! But failed to read image.");
+    }
+    else{
+        LOG_M(MAIN, "We can successfully invoke OpenCV! And succeed to read image.");
+    }
 
     CTimeUtils::msSleep(100);
     LOG_M(MAIN, "Preview the video using URL: <<<<< http://%s:8080 >>>>>", szIP);
@@ -373,23 +378,27 @@ END:
     return 0;
 }
 
+//  函数的作用是在接收到SIGINT信号时修改全局变量 gRunning 的值为 AX_FALSE，这将导致主循环结束，程序逐步停止并清理资源
 void exit_handler(int s) {
     LOG_M(MAIN, "\nCaught signal: SIGINT\n");
     gRunning = AX_FALSE;
-    gExit_count++;
+    gExit_count++;              // gExit_count 用于记录收到SIGINT信号的次数。如果在短时间内多次收到该信号（例如3次），程序将直接强制退出。这种设计可以处理某些情况下程序不能正常退出的问题。
     if (gExit_count >= 3) {
         LOG_M(MAIN, "Force to exit\n");
         _exit(1);
     }
 }
 
+// 用于处理 SIGPIPE 信号。SIGPIPE 信号通常在进程写入到一个没有读端的管道时被触发。
+//在许多网络通信程序中，如果不处理此信号，进程会在尝试写入断开的网络连接时意外退出。
 void ignore_sig_pipe()
 {
     struct sigaction sa;
-    sa.sa_handler = SIG_IGN;
+    sa.sa_handler = SIG_IGN;                    // 设置 SIGPIPE 信号的处理方式为忽略（SIG_IGN），防止因为写入到无读取者的管道而导致程序异常退出
     sa.sa_flags = 0;
+    // 使用 sigaction 而非 signal 函数进行信号处理设置，可以提供更多控制，如能指定信号处理过程中需要阻塞的信号集
     if (sigemptyset(&sa.sa_mask) == -1 ||
-        sigaction(SIGPIPE, &sa, 0) == -1) {
+        sigaction(SIGPIPE, &sa, 0) == -1) {     // 通过调用 sigaction 将 SIGPIPE 的处理方式设置为忽略（SIG_IGN），这样写入断开连接时不会导致程序异常退出。
         perror("failed to ignore SIGPIPE, sigaction");
         exit(EXIT_FAILURE);
     }
