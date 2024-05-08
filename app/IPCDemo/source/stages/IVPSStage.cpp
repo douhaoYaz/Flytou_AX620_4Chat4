@@ -21,6 +21,7 @@
 #include "MemMgr.h"
 #include "unicode.h"
 #include <thread>
+#include <opencv2/opencv.hpp>
 
 #define IVPS "IVPS"
 
@@ -223,8 +224,24 @@ AX_BOOL CIVPSStage::ProcessFrame(CMediaFrame *pFrame)
 
 AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
 {
+    // 测试OpenCV +++
+    int width = 0;
+    int height = 0;
+    // void* y_plane = nullptr;
+    // unsigned int y_plane;
+    // unsigned char *y_plane = nullptr;
+    // unsigned int *y_plane = nullptr;
+    // unsigned int *y_plane;
+    // unsigned int *data;
+    unsigned long long int *data;
+    uint8_t* y_plane;
+    int count = 50;      // 把count个图像写到文件中
+    CMediaFrame *pMediaFrameTest = nullptr;
+    // 测试OpenCV ---
+
     AX_S32 nRet = AX_IVPS_SUCC;
 
+    // pThreadParam是由StartIVPS()函数里创建该线程时传进来的
     AX_U8 nIvpsGrp = pThreadParam->nIvpsGrp;
     AX_U8 nIvpsChn = pThreadParam->nIvpsChn;
     AX_U8 nIvpsChnIndex = pThreadParam->nIvpsChnIndex;
@@ -249,6 +266,7 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
             continue;
         }
 
+        // 用户从通道获取一帧处理完成的图像。
         nRet = AX_IVPS_GetChnFrame(nIvpsGrp, nIvpsChn, &pMediaFrame->tVideoFrame, 200);
 
         if (AX_IVPS_SUCC != nRet) {
@@ -269,9 +287,9 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
         pMediaFrame->nIvpsReleaseGrp                    = nIvpsGrp;
         pMediaFrame->nReleaseChannel                    = nIvpsChn;
         pMediaFrame->pFrameRelease                      = pThreadParam->pReleaseStage;
-        pMediaFrame->nFrameID                           = pMediaFrame->tVideoFrame.u64SeqNum;
-        pMediaFrame->tVideoFrame.u64VirAddr[0]          = (AX_U32)AX_POOL_GetBlockVirAddr(pMediaFrame->tVideoFrame.u32BlkId[0]);
-        pMediaFrame->tVideoFrame.u64PhyAddr[0]          = AX_POOL_Handle2PhysAddr(pMediaFrame->tVideoFrame.u32BlkId[0]);
+        pMediaFrame->nFrameID                           = pMediaFrame->tVideoFrame.u64SeqNum;       // 图像帧序列号
+        pMediaFrame->tVideoFrame.u64VirAddr[0]          = (AX_U32)AX_POOL_GetBlockVirAddr(pMediaFrame->tVideoFrame.u32BlkId[0]);    // 图像数据虚拟地址
+        pMediaFrame->tVideoFrame.u64PhyAddr[0]          = AX_POOL_Handle2PhysAddr(pMediaFrame->tVideoFrame.u32BlkId[0]);            // 图像数据物理地址
         pMediaFrame->tVideoFrame.u32FrameSize           = pMediaFrame->tVideoFrame.u32PicStride[0] * pMediaFrame->tVideoFrame.u32Height * 3 / 2;
         pMediaFrame->nStride                            = pMediaFrame->tVideoFrame.u32PicStride[0];
 
@@ -286,6 +304,52 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
             pMediaFrame->FreeMem();
             continue;
         }
+
+        // 此处增加YUV转Mat的测试代码+++
+
+        if(count > 0){
+            // width = pMediaFrame->tFrame.tFrameInfo.stVFrame.u32Width;
+            // height = pMediaFrame->tFrame.tFrameInfo.stVFrame.u32Height;
+            // y_plane = (void *)pMediaFrame->tFrame.tFrameInfo.stVFrame.u32BlkId[2];
+
+            // LOG_M(IVPS, "YUV type is %d", pMediaFrame->tVideoFrame.enImgFormat);
+
+            // grp2的图像分辨率是640×360
+            if (nIvpsGrp == 2 && count == 1){
+                LOG_M(IVPS, "grp is %d, frame resolution is %d x %d", nIvpsGrp, pMediaFrame->tVideoFrame.u32Width, pMediaFrame->tVideoFrame.u32Height);
+            
+
+                // pMediaFrameTest = pMediaFrame;
+                // 失败原因有可能是找不准确yuv存的内存地址、构造yuvImg的高宽和通道不正确、cvtColor的参数不正确
+
+                LOG_M(IVPS, "ram address is %d", pMediaFrame->tVideoFrame.u32BlkId[0]);
+                LOG_M(IVPS, "ram address is %lld", pMediaFrame->tVideoFrame.u64VirAddr[0]);
+                
+                width = pMediaFrame->tVideoFrame.u32Width;
+                height = pMediaFrame->tVideoFrame.u32Height;
+                // y_plane = (unsigned char *)pMediaFrame->tVideoFrame.u32BlkId[2];
+                // y_plane = reinterpret_cast<uint8_t*>(pMediaFrame->tVideoFrame.u32BlkId[2]);
+                // *data = pMediaFrame->tVideoFrame.u32BlkId[2];
+                // y_plane = reinterpret_cast<uint8_t*>(data);
+                
+                // data = reinterpret_cast<unsigned int *>(pMediaFrame->tVideoFrame.u32BlkId[2]);
+                data = reinterpret_cast<unsigned long long int *>(pMediaFrame->tVideoFrame.u64VirAddr[0]);
+                y_plane = (uint8_t *)data;
+
+                // cv::Mat yuvImg(height + height / 2, width, CV_8UC3, y_plane);
+                cv::Mat yuvImg(height + height / 2, width, CV_8UC1, y_plane);
+                // cv::Mat yuvImg(height + height / 2, width, CV_8UC1, pMediaFrame->tVideoFrame.u32BlkId[2]);
+                
+                cv::Mat bgrImg(height, width, CV_8UC3);
+                cv::cvtColor(yuvImg, bgrImg, cv::COLOR_YUV2BGR_NV12);
+                
+                cv::imwrite("/opt/yang_test/yuv_test/bgrImg.jpg", bgrImg);
+
+                LOG_M(IVPS, "Successfully write yuvImg to /opt/yangt_test/yuv_test/ ???");
+            }
+            count--;
+        }
+        // 测试OpenCV---
 
         gPrintHelper.Add(E_PH_MOD_IVPS, nIvpsGrp, nIvpsChn);
         if (E_END_POINT_JENC == endpintOptions.eEPType) {
