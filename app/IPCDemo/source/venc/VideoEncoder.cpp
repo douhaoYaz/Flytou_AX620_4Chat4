@@ -110,7 +110,7 @@ AX_BOOL CVideoEncoder::ProcessFrame(CMediaFrame* pFrame)
     tFrame.stVFrame.u32PicStride[2] = 0;
     tFrame.stVFrame.enImgFormat = AX_YUV420_SEMIPLANAR;
 
-    nRet = AX_VENC_SendFrame(m_nChannel, &tFrame, -1);
+    nRet = AX_VENC_SendFrame(m_nChannel, &tFrame, -1);      // 发送原始图像帧信息到编码器缓存队列。
     if (AX_SUCCESS != nRet) {
         LOG_M_E(VENC, "[%d] AX_VENC_SendFrame failed, ret=0x%x", m_nChannel, nRet);
         return AX_FALSE;
@@ -136,7 +136,7 @@ static AX_VOID *GetThreadFunc(AX_VOID *__this)
                             (pThis->m_nChannel == 0);
 
     while (pThis->m_bGetThreadRunning) {
-        ret = AX_VENC_GetStream(pThis->m_nChannel, &stStream, -1);
+        ret = AX_VENC_GetStream(pThis->m_nChannel, &stStream, -1);      // 获取编码码流。-1表示为阻塞方式获取码流，只有成功获取到码流数据后才会返回。获取码流接口与释放码流接口调用必须成对调用， 否则可能导致内存泄漏风险。
         if (AX_SUCCESS != ret) {
             if (AX_ERR_VENC_FLOW_END == ret) {
                 pThis->m_bGetThreadRunning = AX_FALSE;
@@ -182,7 +182,7 @@ static AX_VOID *GetThreadFunc(AX_VOID *__this)
             }
         }
 
-        ret = AX_VENC_ReleaseStream(pThis->m_nChannel, &stStream);
+        ret = AX_VENC_ReleaseStream(pThis->m_nChannel, &stStream);      // 释放码流缓存。此接口应和 AX_VENC_GetStream 配对使用，用户获取码流后应及时释放已经获取的码流缓存，否则可能影响对新数据的编码。
         if (AX_SUCCESS != ret) {
             LOG_M_E(VENC, "AX_VENC_ReleaseStream failed!");
             continue;
@@ -205,6 +205,9 @@ AX_BOOL CVideoEncoder::LoadConfig()
 
     m_tVideoConfig = tVEncConfig;
 
+    // m_tChnAttr在SetChnAttr()里被设置，SetChnAttr()在main里被调用，设置的是CBaseSensor的m_tChnAttr，如果实际使用的Sensor是OS04a10，那么设置的就是OS04a10的属性
+    // m_nChannel是VENC对应的通道号，例如有两个VENC，一个对应IVSP的输出通道0，一个对应IVSP的输出通道2。目前ISP的输出通道就对应IVSP的输出通道，所以nISPChn就对应m_nChannel
+    // 下面代码的作用就是根据通道号来设置对应的VENC的输入和输出帧的宽和高
     AX_U8 nISPChn = CIVPSStage::GetIspChnIndex(m_nChannel);
     m_tVideoConfig.nInWidth     = m_tChnAttr.tChnAttr[nISPChn].nWidth;
     m_tVideoConfig.nInHeight    = m_tChnAttr.tChnAttr[nISPChn].nHeight;
@@ -266,19 +269,19 @@ AX_BOOL CVideoEncoder::Start(AX_BOOL bReload /*= AX_TRUE*/)
             return AX_FALSE;
         }
     } else {
-        AX_BOOL bRet = InitParams(m_tVideoConfig);
+        AX_BOOL bRet = InitParams(m_tVideoConfig);          // 初始化 VENC 模块配置参数。m_tVideoConfig封装了从配置文件获取的 VENC 相关属性。此接口通过 AX_VENC_CreateChn 配置相关参数。
         if (!bRet) {
             LOG_M_E(VENC, "Failed to start VENC.");
         }
     }
 
     m_bGetThreadRunning = AX_TRUE;
-    m_pGetThread = new thread(GetThreadFunc, this);
+    m_pGetThread = new thread(GetThreadFunc, this);         // 线程处理函数，从编码模块获取编码后的帧。
 
     if (m_pGetThread) {
         AX_VENC_RECV_PIC_PARAM_S tRecvParam;
         tRecvParam.s32RecvPicNum = -1;
-        AX_VENC_StartRecvFrame(m_nChannel, &tRecvParam);
+        AX_VENC_StartRecvFrame(m_nChannel, &tRecvParam);    // 开启编码通道接收输入图像。
     }
 
     AX_BOOL bLinkMode = AX_FALSE;
@@ -288,7 +291,7 @@ AX_BOOL CVideoEncoder::Start(AX_BOOL bReload /*= AX_TRUE*/)
     bLinkMode = (gOptions.IsLinkMode() && 1 == g_tIvpsGroupConfig[nISPChn].arrLinkModeFlag[nIvpsInnerIndex]) ? AX_TRUE : AX_FALSE;
 
     LOG_M(VENC, "[%d] ---", m_nChannel);
-    return CStage::Start(bLinkMode ? AX_FALSE : AX_TRUE);
+    return CStage::Start(bLinkMode ? AX_FALSE : AX_TRUE);   // 如果AX_TRUE的话，在CStage::Start()里就会创建线程执行ProcessFrameThreadFunc()，进而调用ProcessFrame()
 }
 
 AX_VOID CVideoEncoder::Stop()
@@ -654,7 +657,7 @@ AX_BOOL CVideoEncoder::InitParams(VIDEO_CONFIG_T &config)
         m_pMpeg4Encoder->InitParam(stMp4EcInfo);
     }
 
-    AX_S32 ret = AX_VENC_CreateChn(m_nChannel, &stVencChnAttr);
+    AX_S32 ret = AX_VENC_CreateChn(m_nChannel, &stVencChnAttr);     // 创建编码通道
     if (AX_SUCCESS != ret) {
         LOG_M_E(VENC, "[%d] AX_VENC_CreateChn failed, ret=0x%x", m_nChannel, ret);
         return AX_FALSE;

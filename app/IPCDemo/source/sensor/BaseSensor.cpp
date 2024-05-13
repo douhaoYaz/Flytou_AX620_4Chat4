@@ -56,6 +56,7 @@ CBaseSensor *CBaseSensor::NewInstance(AX_U8 nSensorIndex)
         return nullptr;
     }
 
+    // 应该是解析运行程序时命令行输入的Sensor配置路径，创建对应的Sensor
     SENSOR_CONFIG_T tSensorCfg;
     if (!CConfigParser().GetInstance()->GetCameraCfg(tSensorCfg, (SENSOR_ID_E)nSensorIndex)) {
         LOG_M_W(SENSOR, "Load camera configure for sensor %d failed.", nSensorIndex);
@@ -127,10 +128,10 @@ AX_BOOL CBaseSensor::InitISP(AX_VOID)
 
     InitNPU();
     InitMipiRxAttr();
-    InitSnsAttr();
-    InitDevAttr();
-    InitPipeAttr();
-    InitChnAttr();
+    InitSnsAttr();      // 设置Sensor的属性m_tSnsAttr和m_tSnsClkAttr结构体，作为AX_VIN_SetSnsAttr的参数输入
+    InitDevAttr();      // 设置Dev设备的属性m_tDevAttr结构体，作为AX_VIN_SetDevAttr的参数输入
+    InitPipeAttr();     // 设置Pipe的属性m_tPipeAttr结构体，作为AX_VIN_SetPipeAttr的参数输入
+    InitChnAttr();      // 设置输出通道Channel的属性m_tChnAttr结构体，作为AX_VIN_SetChnAttr的参数输入
     if (gOptions.IsEISSupport()) { //ALIGN_UP for GDC
         for (AX_U8 i = 0; i < MAX_ISP_CHANNEL_NUM; i++) {
             m_tChnAttr.tChnAttr[i].nWidthStride = ALIGN_UP(m_tChnAttr.tChnAttr[i].nWidthStride, GDC_STRIDE_ALIGNMENT);
@@ -205,31 +206,33 @@ AX_BOOL CBaseSensor::Open()
     AX_S32 nRet = 0;
     AX_VIN_SNS_DUMP_ATTR_T  tDumpAttr;
 
-    nRet = AX_VIN_Create(m_nPipeID);
+    nRet = AX_VIN_Create(m_nPipeID);        // 创建一个 VIN PIPE，为一路 VIN Pipeline 处理创建必要的资源
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VIN_Create failed, ret=0x%x.", nRet);
         return AX_FALSE;
     }
 
-    nRet = RegisterSensor(m_nPipeID);
+    nRet = RegisterSensor(m_nPipeID);       // 调用AX_VIN_RegisterSensor()，VIN 提供的 sensor 注册回调接口
     if (AX_SDK_PASS != nRet) {
         LOG_M_E(SENSOR, "RegisterSensor failed, ret=0x%x.", nRet);
         return AX_FALSE;
     }
 
-    nRet = AX_VIN_SetRunMode(m_nPipeID, m_tSnsInfo.eRunMode);
+    nRet = AX_VIN_SetRunMode(m_nPipeID, m_tSnsInfo.eRunMode);   // VIN 提供的设置 Isp Pipeline 运行模式的接口，用户通过该接口，可以配置是否在 Pipeline 中串联 NPU 模块
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VIN_SetRunMode failed, ret=0x%x.", nRet);
         return AX_FALSE;
     }
 
+    // 用户需要在调用 AX_VIN_Start()接口之前配置 Sensor 属性。
+    // 这里通过传入m_tSnsAttr结构体作为实参来设置 Camera Sensor 的属性，包含 Sensor 的宽高、 Bayer 格式、数据位宽、帧率、 HDR 模式、 HCG/LCG 模式等。而m_tSnsAttr结构体是在InitISP()函数中调用InitSnsAttr()函数设置的。
     nRet = AX_VIN_SetSnsAttr(m_nPipeID, &m_tSnsAttr);
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VIN_SetSnsAttr failed, ret=0x%x.", nRet);
         return AX_FALSE;
     }
 
-    nRet = AX_VIN_SetDevAttr(m_nPipeID, &m_tDevAttr);
+    nRet = AX_VIN_SetDevAttr(m_nPipeID, &m_tDevAttr);       //设置 VIN 设备属性。支持对 sensor 输出的原始分辨率做裁剪，用户需要了解 sensor 输出的实际分辨率，然后在这里做必要的裁剪，将裁剪之后的宽高配置给 DEV，从而获取到真正有效的宽高
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VIN_SetDevAttr failed, ret=0x%x.", nRet);
         return AX_FALSE;
@@ -251,19 +254,19 @@ AX_BOOL CBaseSensor::Open()
         return AX_FALSE;
     }
 
-    nRet = AX_VIN_OpenSnsClk(m_nPipeID, m_tSnsClkAttr.nSnsClkIdx, m_tSnsClkAttr.eSnsClkRate);
+    nRet = AX_VIN_OpenSnsClk(m_nPipeID, m_tSnsClkAttr.nSnsClkIdx, m_tSnsClkAttr.eSnsClkRate);   // 配置 Sensor MCLK，并且使能 MCLK，包含频率和 Clk 的 Index
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VIN_OpenSnsClk failed, ret=0x%x.", nRet);
         return AX_FALSE;
     }
 
-    nRet = AX_VIN_SetChnAttr(m_nPipeID, &m_tChnAttr);
+    nRet = AX_VIN_SetChnAttr(m_nPipeID, &m_tChnAttr);           // 设置 VIN 输出通道属性。通道的输入是 ISP Pipeline 处理完成之后的 YUV 图像，每一路的pipe 均支持三个物理通道，通道 0 用来处理与 pipe 相同分辨率的图像，通道 1/通道 2 用来处理下采样之后的图像
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VIN_SetChnAttr failed, ret=0x%x.", nRet);
         return AX_FALSE;
     }
 
-    nRet = AX_VIN_SetPipeAttr(m_nPipeID, &m_tPipeAttr);
+    nRet = AX_VIN_SetPipeAttr(m_nPipeID, &m_tPipeAttr);         // 设置 PIPE 属性
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VI_SetPipeAttr failed, ret=0x%x.", nRet);
         return AX_FALSE;
@@ -271,14 +274,15 @@ AX_BOOL CBaseSensor::Open()
 
     AX_VIN_DEV_BIND_PIPE_T tDevBindPipe;
     memset(&tDevBindPipe, 0, sizeof(AX_VIN_DEV_BIND_PIPE_T));
-    tDevBindPipe.nNum = 1;
+    tDevBindPipe.nNum = 1;                                      // Pipe 数量
     tDevBindPipe.nPipeId[0] = m_nPipeID;
-    nRet = AX_VIN_SetDevBindPipe(m_nPipeID, &tDevBindPipe);
+    nRet = AX_VIN_SetDevBindPipe(m_nPipeID, &tDevBindPipe);     // 设置 dev 与 pipe 之间的对应关系。
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VIN_SetDevBindPipe failed, ret=0x%x.", nRet);
         return AX_FALSE;
     }
 
+    // ISP pipeline 各个模块的注册，包含 3A 模块。用户需要在调用该接口之前，完成 3A 算法库的注册
     nRet = AX_ISP_Open(m_nPipeID);
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_ISP_Open failed, ret=0x%x.", nRet);
@@ -320,20 +324,20 @@ AX_BOOL CBaseSensor::Open()
         LOG_M_E(SENSOR, "RegisterAwbAlgLib failed, ret=0x%x.", nRet);
     }
 
-    nRet = AX_VIN_Start(m_nPipeID);
+    nRet = AX_VIN_Start(m_nPipeID);         // VIN pipe 启动运行，完成 VIN 模块的启动、 Sensor 的初始化等功能
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VIN_Start failed, ret=0x%x.", nRet);
         return AX_FALSE;
     }
 
-    nRet = AX_VIN_EnableDev(m_nPipeID);
+    nRet = AX_VIN_EnableDev(m_nPipeID);     // 使能 VIN Dev 设备
     if (0 != nRet) {
         LOG_M_E(SENSOR, "AX_VIN_EnableDev failed, ret=0x%x.", nRet);
         return AX_FALSE;
     }
 
     AX_PIPE_ATTR_T tPipeAttr = {0};
-    AX_VIN_GetPipeAttr(m_nPipeID, &tPipeAttr);
+    AX_VIN_GetPipeAttr(m_nPipeID, &tPipeAttr);  // 获取 VIN PIPE 属性
     if (AX_PIPE_SOURCE_DEV_OFFLINE == tPipeAttr.ePipeDataSrc) {
         tDumpAttr.bEnable = AX_TRUE;
         tDumpAttr.nDepth = 2;
@@ -357,7 +361,7 @@ AX_BOOL CBaseSensor::Open()
     memset(&tVinDumpAttr, 0x00, sizeof(tVinDumpAttr));
     tVinDumpAttr.bEnable = AX_TRUE;
     tVinDumpAttr.nDepth = (VIN_NPU_DUMP_ENABLE ? 1 : 0); // the depth will affect the block of raw16
-    AX_VIN_SetPipeDumpAttr(m_nPipeID, VIN_DUMP_SOURCE_NPU, &tVinDumpAttr);
+    AX_VIN_SetPipeDumpAttr(m_nPipeID, VIN_DUMP_SOURCE_NPU, &tVinDumpAttr);  // 设置 ife/npu/itp dump 数据属性
     if (0 != nRet) {
         LOG_M_E(SENSOR, "set VIN_DUMP_SOURCE_NPU fail, ret=0x%x.", nRet);
         return AX_FALSE;
@@ -371,6 +375,7 @@ AX_BOOL CBaseSensor::Open()
         }
     }
 
+    // Sensor 开流，打开之后 Sensor 能够正常输出视频数据。该接口需要在 AX_VIN_Start、 AX_VIN_EnableDev、 AX_VIN_SetSnsDumpAttr 接口之后调用。 也就是客户在调用该接口之前，需要保证 sensor 处于关流的状态，这样能够保证时序上的完全匹配。
     AX_VIN_StreamOn(m_nPipeID); /* stream on */
 
     if (m_tSnsInfo.bSupportTuning) {

@@ -91,7 +91,7 @@ AX_BOOL CStage::EnqueueFrame(CMediaFrame* pFrame)
 {
     std::unique_lock<std::mutex> lck(m_mtxFrameQueue);
     if (m_bProcessFrameWorking) {
-        m_qFrame.push(pFrame);
+        m_qFrame.push(pFrame);      // 把获得的帧数据push到CStage的m_qFrame队列中
         m_cvFrameCome.notify_one();
         return AX_TRUE;
     }
@@ -124,6 +124,10 @@ AX_VOID CStage::ProcessFrameThreadFunc()
         {
             std::unique_lock<std::mutex> lck(m_mtxFrameQueue);
             m_cvFrameCome.wait(lck, [this]() {
+                // 测试：
+                // if(m_strStageName == "IVPS"){
+                //     LOG_M(m_strStageName.c_str(), "In CStage ProcessFrameThreadFunc() while lock");
+                // }
                  return (!m_qFrame.empty() || !m_bProcessFrameWorking);
             });
 

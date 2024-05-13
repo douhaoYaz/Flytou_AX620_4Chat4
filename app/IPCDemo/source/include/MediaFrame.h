@@ -23,8 +23,8 @@ public:
 class CMediaFrame
 {
 public:
-    AX_IMG_INFO_T         tFrame;
-    AX_VIDEO_FRAME_S      tVideoFrame;
+    AX_IMG_INFO_T         tFrame;       // 图像信息
+    AX_VIDEO_FRAME_S      tVideoFrame;  // 图像数据的基本属性
     AX_BOOL               bIvpsFrame;
     AX_U32                nPipeID;
     AX_U32                nStride;
