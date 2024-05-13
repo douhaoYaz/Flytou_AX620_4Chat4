@@ -107,8 +107,6 @@ CTrackCropStage g_stageTrackCrop;
 AXRtspServer g_rtspServer;
 CWebServer g_webserver;
 
-// cv::Mat mat;    // 测试OpenCV
-
 // 这个函数主要用于在视频流的帧产生速率降低到某一阈值时自动将系统置于低功耗状态，以节省电能或其他资源
 static AX_VOID* ThreadCheckAutoSleep(AX_VOID *__this)
 {
@@ -134,8 +132,6 @@ static AX_VOID* ThreadCheckAutoSleep(AX_VOID *__this)
 
 int main(int argc, const char *argv[])
 {
-    cv::Mat mat = cv::imread("");
-    // 这个搞不懂什么玩意
     AX_MTRACE_ENTER(ipcdemo);
     get_sdk_version();
 
@@ -211,7 +207,7 @@ int main(int argc, const char *argv[])
                 }
             }
             g_vecVEnc.emplace_back(pVenc);
-        } else if (E_END_POINT_DET == g_tEPOptions[i].eEPType) {    // 应该是初始化DET，但DET是什么
+        } else if (E_END_POINT_DET == g_tEPOptions[i].eEPType) {    // 初始化DET
             g_stageDetect.SetChannel(g_tEPOptions[i].nChannel, g_tEPOptions[i].nInnerIndex);
             g_stageTrackCrop.SetChannel(g_tEPOptions[i].nChannel, g_tEPOptions[i].nInnerIndex);
         }
@@ -246,12 +242,12 @@ int main(int argc, const char *argv[])
     AX_VENC_Init(&tModAttr);
 
     /* FillCameraAttr should be invoked before detect state start */
-    // 猜测是设置原图像和处理后图像的帧率、要输入到channel的图像的宽和高
+    // 猜测是根据Sensor属性来设置原图像和处理后图像的帧率、要输入到channel的图像的宽和高
     RESULT_CHECK(g_stageIVPS.FillCameraAttr(&g_camera));
 
     /* Start detector */
     if (gOptions.IsActivedDetect()) {
-        RESULT_CHECK(g_stageDetect.Start());    // 调用CStage类的ProcessFrameThreadFunc函数，具体操作和线程锁有关
+        RESULT_CHECK(g_stageDetect.Start());
     }
 
     /* Init buffer pool */
@@ -287,21 +283,10 @@ int main(int argc, const char *argv[])
         RESULT_CHECK(g_stageTrackCrop.Start());
     }
 
-    // 猜测这里就是正式的开始
     RESULT_CHECK(g_stageIVPS.Start(AX_TRUE));
     RESULT_CHECK(g_camera.Start());             // 创建一个 RtpThreadFunc 线程来使能出流, 开启 ITP 唤醒线程，以通知 ITP 出流
 
     CHotBalance::GetInstance()->Start(CStageOptionHelper().GetInstance()->GetHotBalanceAttr().tConfig);
-
-    // 试试在这里插入测试OpenCV能否正常使用的语句
-    //cv::Mat mat = cv::imread("");
-    if(mat.empty()){
-        // 调用log来输出错误信息来测试
-        LOG_M(MAIN, "We can successfully invoke OpenCV! But failed to read image.");
-    }
-    else{
-        LOG_M(MAIN, "We can successfully invoke OpenCV! And succeed to read image.");
-    }
 
     CTimeUtils::msSleep(100);
     LOG_M(MAIN, "Preview the video using URL: <<<<< http://%s:8080 >>>>>", szIP);
@@ -418,12 +403,12 @@ void get_sdk_version()
 AX_S32 APP_SYS_Init() {
     AX_S32 nRet = AX_SUCCESS;
 
-    nRet = AX_SYS_Init();
+    nRet = AX_SYS_Init();       // 对媒体子系统进行初始化，开始对媒体相关的各种软硬件资源实施管理，使相关资源从不确定的无管理状态转入确定的待命状态。
     if (0 != nRet) {
         return nRet;
     }
 
-    nRet = AX_POOL_Exit();
+    nRet = AX_POOL_Exit();      // 释放所有已创建的媒体子系统缓存池。建议应用程序启动后首先调用此 API，清除可能存在的系统残留。
     if (0 != nRet) {
         return nRet;
     }
