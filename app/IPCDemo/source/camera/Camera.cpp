@@ -17,6 +17,7 @@
 #include "JsonCfgParser.h"
 #include "CommonUtils.h"
 #include "ax_isp_3a_api.h"
+#include <opencv2/opencv.hpp>
 
 #include <stdio.h>
 #include <iostream>
@@ -106,6 +107,7 @@ void CCamera::YuvGetThreadFunc(YUV_THREAD_PARAM_PTR pThreadParam)
             continue;
         }
 
+        // 在这里获得YUV格式图像，YUV 数据是经过 ISP Pipeline 图像处理之后生成的数据，此处-1表示阻塞等待
         nRet = AX_VIN_GetYuvFrame(nPipeID, (AX_YUV_SOURCE_ID_E)nChn, &pMediaFrame->tFrame, -1);
         if (AX_SDK_PASS != nRet) {
             if (pThreadParam->bThreadRunning) {
@@ -141,7 +143,7 @@ void CCamera::YuvGetThreadFunc(YUV_THREAD_PARAM_PTR pThreadParam)
         pMediaFrame->nStride = pMediaFrame->tFrame.tFrameInfo.stVFrame.u32Width;
 
         if (nSkipCnt > 0) {
-            AX_VIN_ReleaseYuvFrame(nPipeID, (AX_YUV_SOURCE_ID_E)nChn, &pMediaFrame->tFrame);
+            AX_VIN_ReleaseYuvFrame(nPipeID, (AX_YUV_SOURCE_ID_E)nChn, &pMediaFrame->tFrame);        // 释放一帧从 VIN 通道获取的数据。
             SAFE_DELETE_PTR(pMediaFrame);
             nSkipCnt--;
             continue;
@@ -159,10 +161,11 @@ void CCamera::YuvGetThreadFunc(YUV_THREAD_PARAM_PTR pThreadParam)
             continue;
         }
 
-        m_qFrame[nChn].push_back(pMediaFrame);
+        m_qFrame[nChn].push_back(pMediaFrame);      // 把获得的帧数据push到CCamera的m_qFrame对应通道的list中
+
         m_mtxFrame[nChn].unlock();
 
-        if (!m_pIvpsStage->EnqueueFrame(pMediaFrame)) {
+        if (!m_pIvpsStage->EnqueueFrame(pMediaFrame)) {     // 把获得的帧数据push到CIVPSStage的m_qFrame队列中，这个好像是不区分Channel的吗？
             pMediaFrame->FreeMem();
         }
     }
@@ -206,7 +209,7 @@ void CCamera::ItpLoopThreadFunc()
                 LOG_M(CAMERA, "Restart already in progress.");
             }
         }
-        AX_ISP_Run(m_nPipeID);
+        AX_ISP_Run(m_nPipeID);      // 输入Pipe号，ISP运行。注意：需要在用户创建线程中调用该接口，接口内部会同步等待帧完成信号，每执行一次会根据AE/AWB 算法输出结果以及各个模块 Auto/Manual 工作模式，动态更新 ISP 模块算法参数
         if (bNeedSleep) {
             CTimeUtils::nsSleep(1);
         }
@@ -236,6 +239,9 @@ AX_BOOL CCamera::Init(AX_POOL_FLOORPLAN_T *stVbConf, AX_U8& nCount, AX_U8 nSenso
             UpdateFramerate(nFramerate);
         }
 
+        // Sensor 初始化流程所需属性的配置流程创建，通过不同的实现类实现不同属性的配置。
+        // nSensorID / nDeviceID / nPipeID 为 sensor 创建不同 pipeline（比如多 pipe 场景）过程中各 API接口所需指定的参数。 stVbConf 以及 nCount 为配置 ax_pool 所需的相关的参数。
+        // 包括InitISP()、CalcBufSize()，其中InitISP()包括设置NPU、设置MipiRx属性、Sensor属性、Dev属性、Pipe属性和Channel属性
         bRet = m_pSensorInstance->Init(nSensorID, nDeviceID, nPipeID, stVbConf, nCount);
         if (!bRet) {
             LOG_M_E(CAMERA, "Init camera failed.");
@@ -302,23 +308,30 @@ AX_BOOL CCamera::Start()
 
     m_bVinStreamOff = AX_FALSE;
     m_bRtpThreadRunning = AX_TRUE;
-    m_pRtpThread = new thread(&CCamera::ItpLoopThreadFunc, this);
+    m_pRtpThread = new thread(&CCamera::ItpLoopThreadFunc, this);   // 循环调用AX_ISP_Run，需要在用户创建线程中调用该接口
 
     CTimeUtils::msSleep(50);
 
+    // 根据测试ipc_demo的运行输出LOG显示，这里ISP的Channel数量是3个，只有一个Pipe，PipeID都是0
     for (AX_U8 i = 0; i < MAX_ISP_CHANNEL_NUM; ++i) {
         m_tYUVThreadParam[i].nPipeID = m_nPipeID;
         m_tYUVThreadParam[i].nIspChn = i;
         m_tYUVThreadParam[i].bThreadRunning = AX_FALSE;
 
+        // // 测试查看是否Link模式
+        // LOG_M(CAMERA, "Check if Link Mode +++");
         if (!gOptions.IsLinkMode()) {
             m_tYUVThreadParam[i].bValid = AX_TRUE;
+            //  LOG_M(CAMERA, "Is not Link Mode!!!");
         }
+        // LOG_M(CAMERA, "Check if Link Mode ---");
     }
 
+    // 是Link模式的话不会执行这里的创建线程
     for (AX_U8 i = 0; i < MAX_ISP_CHANNEL_NUM; ++i) {
         if (m_tYUVThreadParam[i].bValid) {
             m_tYUVThreadParam[i].bThreadRunning = AX_TRUE;
+            // 创建线程，线程里的每一轮循环都调用一次AX_VIN_GetYuvFrame函数，获取一帧YUV数据
             m_pYuvGetThread[i] = new thread(&CCamera::YuvGetThreadFunc, this, &m_tYUVThreadParam[i]);
         }
     }
