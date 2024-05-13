@@ -210,9 +210,10 @@ AX_BOOL CIVPSStage::ProcessFrame(CMediaFrame *pFrame)
         return AX_TRUE;
     }
 
-    const IVPS_GRP_PTR p = &m_arrIvpsGrp[pFrame->nChannel];
+    const IVPS_GRP_PTR p = &m_arrIvpsGrp[pFrame->nChannel];     // 猜测是根据这一帧属于ISP的哪个CHANNEL来设置对应的IVPS的GROUP
     LOG_M_I(IVPS, "[Grp %d] Seq: %d, blkID_0: 0x%x, blkID_1 : 0x%x", p->nIvpsGrp, pFrame->nFrameID, pFrame->tFrame.tFrameInfo.stVFrame.u32BlkId[0], pFrame->tFrame.tFrameInfo.stVFrame.u32BlkId[1]);
 
+    // 用户向IVPS发送帧数据。指定发送到IVPS的哪个GROUP
     AX_S32 ret = AX_IVPS_SendFrame(p->nIvpsGrp, &pFrame->tFrame.tFrameInfo.stVFrame, MAX_IPC_IVPS_FRAME_TIMEOUT);
     if (AX_IVPS_SUCC != ret) {
         LOG_M_E(IVPS, "AX_IVPS_SendFrame(Grp %d, ID %d) failed, ret=0x%x", p->nIvpsGrp, pFrame->nFrameID, ret);
@@ -222,6 +223,7 @@ AX_BOOL CIVPSStage::ProcessFrame(CMediaFrame *pFrame)
     return AX_TRUE;
 }
 
+// 大概就是创建一个临时帧pMediaFrame，将它指向 从IVPS的CHANNEL(一个线程对应一个CHANNEL)里获取的一帧，最后让这临时帧入队对应的END_POINT处理，例如VENC和DET
 AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
 {
     // 测试OpenCV +++
@@ -266,7 +268,7 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
             continue;
         }
 
-        // 用户从通道获取一帧处理完成的图像。
+        // 用户从IVPS指定的GROUP和CHANNEL通道处获取一帧处理完成的图像。
         nRet = AX_IVPS_GetChnFrame(nIvpsGrp, nIvpsChn, &pMediaFrame->tVideoFrame, 200);
 
         if (AX_IVPS_SUCC != nRet) {
@@ -299,6 +301,19 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
             }
         }
 
+        // 这里究竟是不是LinkMode？
+        // if(count == 1){
+        //     LOG_M(IVPS, "Check if LinkMode ++++++");
+        //     if(gOptions.IsLinkMode()){
+        //         LOG_M(IVPS, "It is LinkMode.");
+        //     }
+        //     else{
+        //         LOG_M(IVPS, "It is not LinkMode.");
+        //     }
+        //     LOG_M(IVPS, "Check if LinkMode ------");
+
+        //     LOG_M(IVPS, "IVPS GROUP%d LinkModeFlag is %d", nIvpsGrp, g_tIvpsGroupConfig[nIvpsGrp].arrLinkModeFlag[nIvpsChn]);
+        // }
         if (gOptions.IsLinkMode() && 1 == g_tIvpsGroupConfig[nIvpsGrp].arrLinkModeFlag[nIvpsChn]) {
             /* Skip if link mode */
             pMediaFrame->FreeMem();
@@ -423,6 +438,7 @@ AX_VOID CIVPSStage::RgnThreadFunc(IVPS_REGION_PARAM_PTR pThreadParam) {
 
         memset(&wszOsdDate[0], 0, sizeof(wchar_t) * MAX_OSD_TIME_CHAR_LEN);
 
+        // 应该是将当前时间作为将要进行OSD叠加到帧上面的字符
         AX_S32 nCharLen = 0;
         if (nullptr == CTimeUtils::GetCurrDateStr(&wszOsdDate[0], OSD_DATE_FORMAT_YYMMDDHHmmSS, nCharLen)) {
             LOG_M_E(IVPS, "Failed to get current date string.");
@@ -465,6 +481,7 @@ AX_VOID CIVPSStage::RgnThreadFunc(IVPS_REGION_PARAM_PTR pThreadParam) {
 
         pArgbData = (AX_U16 *)malloc(nPicSize);
 
+        // 将时间字符串生成出ARGB数据，存储到pArgbData指向的buffer
         if (nullptr == m_osdWrapper.GenARGB(pOsdHandle, (wchar_t *)&wszOsdDate[0], (AX_U16 *)pArgbData, nPixWidth, nPixHeight,
                                         nPicOffset, 0, nFontSize, AX_TRUE, nFontColor, 0xFFFFFF, 0xFF000000,
                                         eAlign)) {
@@ -498,7 +515,7 @@ AX_VOID CIVPSStage::RgnThreadFunc(IVPS_REGION_PARAM_PTR pThreadParam) {
             tDisp.arrDisp[0].uDisp.tOSD.u16Alpha);
 
         /* Region update */
-        ret = AX_IVPS_RGN_Update(pThreadParam->hChnRgn, &tDisp);
+        ret = AX_IVPS_RGN_Update(pThreadParam->hChnRgn, &tDisp);    // 更新 hRegion 对应的 region 显示信息
         if (AX_IVPS_SUCC != ret) {
             LOG_M_E(IVPS, "[%d][0x%02x] AX_IVPS_RGN_Update fail, ret=0x%x, hChnRgn=%d", nIvpsGrp, nFilter, ret, pThreadParam->hChnRgn);
         }
@@ -667,7 +684,7 @@ AX_BOOL CIVPSStage::InitOsd()
 
 AX_BOOL CIVPSStage::InitPPL()
 {
-    memset(&m_arrIvpsGrp[0], 0, sizeof(IVPS_GRP_T) * IVPS_GROUP_NUM);
+    memset(&m_arrIvpsGrp[0], 0, sizeof(IVPS_GRP_T) * IVPS_GROUP_NUM);   // 应该是将结构体清0，给后面的StartIVPS()里的AX_IVPS_CreateGrp()和AX_IVPS_SetPipelineAttr作为实参作准备
 
     if (gOptions.IsEISSupport()) {
         // Make sure use AX_IVPS_ENGINE_GDC for EIS
@@ -803,12 +820,15 @@ AX_BOOL CIVPSStage::InitPPL()
     return AX_TRUE;
 }
 
+// 大概就是LinkIVPSFromISP，然后创建IVPS的GROUP、PIPELINE和CHANNEL，并启动它们。最后创建FrameGetThreadFunc线程来获取帧
 AX_BOOL CIVPSStage::StartIVPS()
 {
     LOG_M(IVPS, "+++");
 
     AX_U8 nIvpsChnIndex = 0;
+    // 有3个GROUP所以循环设置3次
     for (AX_U8 i = 0; i < IVPS_GROUP_NUM; i++) {
+        // 获取第i个GROUP的设置 m_arrIvpsGrp[i]
         IVPS_GRP_T& tGrp = m_arrIvpsGrp[i];
 
         if (0 == tGrp.tPipelineAttr.nOutChnNum) {
@@ -820,13 +840,13 @@ AX_BOOL CIVPSStage::StartIVPS()
         }
 
         IVPS_GRP nIvpsGrp = tGrp.nIvpsGrp;
-        AX_S32 ret = AX_IVPS_CreateGrp(nIvpsGrp, &tGrp.tIvpsGrp);
+        AX_S32 ret = AX_IVPS_CreateGrp(nIvpsGrp, &tGrp.tIvpsGrp);   // 创建一个IVPS GROUP。输入IVPS GROUP号和IVPS GROUP属性指针，该IVPS GROUP属性指针实参已在StartIVPS()的上一步InitPPL()中清0
         if (AX_IVPS_SUCC != ret) {
             LOG_M_E(IVPS, "AX_IVPS_CreateGrp(Grp: %d) failed, ret=0x%x", nIvpsGrp, ret);
             return AX_FALSE;
         }
 
-        ret = AX_IVPS_SetPipelineAttr(nIvpsGrp, &tGrp.tPipelineAttr);
+        ret = AX_IVPS_SetPipelineAttr(nIvpsGrp, &tGrp.tPipelineAttr);   // 设置GROUP 的Pipeline 属性。输入IVPS GROUP号和Pipeline 属性值指针，该IVPS GROUP属性指针实参已在StartIVPS()的上一步InitPPL()中清0
         if (AX_IVPS_SUCC != ret) {
             LOG_M_E(IVPS, "AX_IVPS_SetPipelineAttr(Grp: %d) failed, ret=0x%x", nIvpsGrp, ret);
             return AX_FALSE;
@@ -857,6 +877,7 @@ AX_BOOL CIVPSStage::StartIVPS()
             }
 
             /* get thread param */
+            // 设置用于FrameGetThreadFunc的参数
             m_tGetThreadParam[nIvpsChnIndex].bValid = AX_TRUE;
             m_tGetThreadParam[nIvpsChnIndex].nIvpsGrp = nIvpsGrp;
             m_tGetThreadParam[nIvpsChnIndex].nIvpsChn = chn;
@@ -866,17 +887,20 @@ AX_BOOL CIVPSStage::StartIVPS()
 
             nIvpsChnIndex++;
 
+            // 启用IVPS CHANNEL。输入IVPS GROUP 号和IVPS CHANNEL通道号
             ret = AX_IVPS_EnableChn(nIvpsGrp, chn);
             if (AX_IVPS_SUCC != ret) {
                 LOG_M_E(IVPS, "AX_IVPS_EnableChn(Grp: %d, Chn: %d) failed, ret=0x%x", nIvpsGrp, chn, ret);
                 return AX_FALSE;
             }
 
+            // 用户获取一个CHANNEL通道的设备节点。文档说它的返回值是设备节点句柄，但这里并没有使用，不明白这里的作用
             AX_IVPS_GetChnFd(nIvpsGrp, chn);
 
             LOG_M(IVPS, "Enable channel (Grp: %d, Chn: %d)", nIvpsGrp, chn);
         }
 
+        // 启用IVPS GROUP
         ret = AX_IVPS_StartGrp(nIvpsGrp);
         if (AX_IVPS_SUCC != ret) {
             LOG_M_E(IVPS, "AX_IVPS_StartGrp(Grp: %d) failed, ret=0x%x", nIvpsGrp, ret);
@@ -885,6 +909,7 @@ AX_BOOL CIVPSStage::StartIVPS()
     }
 
     /* Start frame get thread */
+    // 这里应该是将获取到的帧数据Enqueue入队到VENC做处理，所以是根据VENC的CHANNEL数量来创建多少个线程
     for (AX_U8 i = 0; i < MAX_VENC_CHANNEL_NUM; i++) {
         if (m_tGetThreadParam[i].bValid) {
             m_hGetThread[i] = std::thread(&CIVPSStage::FrameGetThreadFunc, this, &m_tGetThreadParam[i]);
@@ -1295,12 +1320,12 @@ AX_BOOL CIVPSStage::StartOSD()
 
     for (AX_U32 i = 0; i < OSD_ATTACH_NUM; i++) {
         OSD_ATTR_INFO* pAttr = &m_arrOsdAttr[i];
-        IVPS_RGN_HANDLE hChnRgn = AX_IVPS_RGN_Create();
+        IVPS_RGN_HANDLE hChnRgn = AX_IVPS_RGN_Create();     // 用户创建一个REGION
         if (AX_IVPS_INVALID_REGION_HANDLE != hChnRgn) {
             AX_U32 nIvpsGrp = pAttr->nIvpsGrp;
             AX_S32 nFilter = pAttr->nFilter;
 
-            nRet = AX_IVPS_RGN_AttachToFilter(hChnRgn, nIvpsGrp, nFilter);
+            nRet = AX_IVPS_RGN_AttachToFilter(hChnRgn, nIvpsGrp, nFilter);  // 将Region绑定到IVPS Filter上
             if (AX_IVPS_SUCC != nRet) {
                 LOG_M_E(IVPS, "[%d] AX_IVPS_RGN_AttachToFilter(Grp: %d, Filter: 0x%x, Handle: %d) failed, ret=0x%x", i, nIvpsGrp, nFilter, hChnRgn, nRet);
                 return AX_FALSE;
