@@ -21,7 +21,12 @@
     "C_Cpp.default.cStandard": "gnu11",
     "C_Cpp.default.cppStandard": "gnu++14",
     "files.associations": {
-        "string": "cpp"
+        "string": "cpp",
+        "condition_variable": "cpp",
+        "*.tcc": "cpp",
+        "fstream": "cpp",
+        "mutex": "cpp",
+        "ostream": "cpp"
     }
   }
   

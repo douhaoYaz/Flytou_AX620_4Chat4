@@ -35,7 +35,9 @@ SRCCPPS			+=	$(wildcard $(SRC_PATH)/*.cpp) \
 					$(wildcard $(SRC_PATH)/detector/*.cpp) \
 					$(wildcard $(SRC_PATH)/capture/*.cpp) \
 					$(wildcard $(SRC_PATH)/hotbalance/*.cpp) \
-					$(wildcard $(SRC_PATH)/osd/*.cpp)
+					$(wildcard $(SRC_PATH)/osd/*.cpp) \
+					$(SRC_PATH)/tracker/FDSSTTracker/fdssttracker.cpp \
+					$(SRC_PATH)/tracker/FDSSTTracker/fhog.cpp
 
 SRCS			+= $(wildcard $(SRC_PATH)/utils/*.c)
 
@@ -73,7 +75,8 @@ CINCLUDE 		:= 	-I$(SRC_PATH) \
 					-I$(SRC_PATH)/utils/OsdHandler \
 					-I$(SRC_PATH)/utils/OsdHandler/freetype \
 					-I$(OUT_PATH)/include/ai_kit \
-					-I$(CV_PATH)/include/opencv4
+					-I$(CV_PATH)/include/opencv4 \
+					-I$(SRC_PATH)/tracker/FDSSTTracker
 # added by Yang	:opencv库
 
 # exec
@@ -107,6 +110,9 @@ endif
 # CFLAGS			+= -DTUNING_CTRL
 
 CFLAGS          += -DAPP_BUILD_VERSION=\"$(SDK_VERSION)\"
+
+# added by Yang, to support FDSSTTracker
+CFLAGS += -mfpu=neon
 
 # dependency
 # CLIB变量专门用于管理和指定链接阶段所需的库。这包括指定要链接的具体库（通过-l选项）和库的搜索路径（通过-L选项）。CLIB提供了一个集中的方式来列出所有项目依赖的库，使得在链接阶段可以很容易地添加或移除库依赖

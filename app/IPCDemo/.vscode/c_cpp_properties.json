@@ -6,9 +6,10 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/../../msp/out/include",
                 "${workspaceFolder}/../../third-party/openssl/include",
-                // "${workspaceFolder}/../../third-party/tinyxml2/include",
                 "${workspaceFolder}/../../third-party/opencv-arm-linux/include",
-                "/usr/local/ARM-toolchain/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/include"
+                "/usr/local/ARM-toolchain/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/include",
+                "/home/yang/AX620_test/third-party/opencv-arm-linux/include/opencv4",
+                "${workspaceFolder}/source/tracker/FDSSTTracker"
             ],
             "defines": [],
             "compilerPath": "/usr/local/ARM-toolchain/gcc-linaro-7.5.0-2019.12-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc",
