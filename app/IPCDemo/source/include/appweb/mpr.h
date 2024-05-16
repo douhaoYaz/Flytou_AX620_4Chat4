@@ -512,14 +512,14 @@ typedef struct MprSpin {
 } MprSpin;
 
 
-#undef lock
-#undef unlock
-#undef spinlock
-#undef spinunlock
-#define lock(arg)       if (arg && (arg)->mutex) mprLock((arg)->mutex)
-#define unlock(arg)     if (arg && (arg)->mutex) mprUnlock((arg)->mutex)
-#define spinlock(arg)   if (arg) mprSpinLock((arg)->spin)
-#define spinunlock(arg) if (arg) mprSpinUnlock((arg)->spin)
+// #undef lock
+// #undef unlock
+// #undef spinlock
+// #undef spinunlock
+// #define lock(arg)       if (arg && (arg)->mutex) mprLock((arg)->mutex)
+// #define unlock(arg)     if (arg && (arg)->mutex) mprUnlock((arg)->mutex)
+// #define spinlock(arg)   if (arg) mprSpinLock((arg)->spin)
+// #define spinunlock(arg) if (arg) mprSpinUnlock((arg)->spin)
 
 /**
     Create a Mutex lock object.
