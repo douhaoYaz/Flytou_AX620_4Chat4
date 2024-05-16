@@ -18,6 +18,7 @@
 #include "VideoEncoder.h"
 #include "DetectStage.h"
 #include "OSDHandlerWrapper.h"
+#include "fdssttracker.hpp"
 
 class CIVPSStage;
 class CVideoEncoder;
@@ -31,6 +32,12 @@ class CJpgEncoder;
 typedef AX_S32 IVPS_GRP;
 typedef AX_S32 EP_HANDLE;
 typedef AX_S32 AX_IVPS_FILTER;
+
+// added by Yang
+// 头文件用extern声明全局变量，并在源文件定义
+extern cv::Rect bbox;               // 跟踪框 boundingbox
+extern AX_BOOL g_bOpenCVTrack;      // 是否执行OpenCV跟踪任务
+extern FDSSTTracker *tracker;
 
 
 enum {

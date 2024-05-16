@@ -44,6 +44,12 @@ CDetectStage* CIVPSStage::m_pDetectStage = nullptr;
 IVPS_GRP_T CIVPSStage::m_arrIvpsGrp[IVPS_GROUP_NUM];
 extern AX_BOOL g_isSleeped;
 
+// added by Yang
+AX_BOOL g_bOpenCVTrack = AX_FALSE;
+cv::Rect bbox = {160, 90, 320, 180};
+FDSSTTracker *tracker = nullptr;
+
+
 IVPS_GROUP_CFG_T g_tIvpsGroupConfig[IVPS_GROUP_NUM] = {
     {1, AX_IVPS_ENGINE_BUTT, {AX_IVPS_ENGINE_TDP, AX_IVPS_ENGINE_TDP, AX_IVPS_ENGINE_TDP}, {{-1, -1}, {-1, 12}, {-1, 1}}, {{-1, -1, 64}, {-1, -1, 64}, {-1, -1, 64}},   {1, 1, 1}},
     {1, AX_IVPS_ENGINE_BUTT, {AX_IVPS_ENGINE_GDC, AX_IVPS_ENGINE_TDP, AX_IVPS_ENGINE_TDP}, {{-1, 15}, {-1, 12}, {-1, -1}}, {{720, 576, 64}, {-1, -1, 64}, {-1, -1, 64}},   {0, 1, 1}},
@@ -230,16 +236,17 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
     int width = 0;
     int height = 0;
     // void* y_plane = nullptr;
-    // unsigned int y_plane;
     // unsigned char *y_plane = nullptr;
-    // unsigned int *y_plane = nullptr;
-    // unsigned int *y_plane;
+    // uint8_t *y_plane = nullptr;
+    uchar *y_plane = nullptr;
     // unsigned int *data;
     unsigned long long int *data;
-    uint8_t* y_plane;
-    int count = 50;      // 把count个图像写到文件中
-    CMediaFrame *pMediaFrameTest = nullptr;
+    int count = 500;      // 用于测试，循环count次后执行测试
     // 测试OpenCV ---
+
+    // 测试OpenCV追踪任务+++
+    cv::Mat gray;
+    // 测试OpenCV追踪任务---
 
     AX_S32 nRet = AX_IVPS_SUCC;
 
@@ -321,50 +328,181 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
         }
 
         // 此处增加YUV转Mat的测试代码+++
+        // if(count > 0){
+        //     // LOG_M(IVPS, "YUV type is %d", pMediaFrame->tVideoFrame.enImgFormat);
 
-        if(count > 0){
-            // width = pMediaFrame->tFrame.tFrameInfo.stVFrame.u32Width;
-            // height = pMediaFrame->tFrame.tFrameInfo.stVFrame.u32Height;
-            // y_plane = (void *)pMediaFrame->tFrame.tFrameInfo.stVFrame.u32BlkId[2];
-
-            // LOG_M(IVPS, "YUV type is %d", pMediaFrame->tVideoFrame.enImgFormat);
-
-            // grp2的图像分辨率是640×360
-            if (nIvpsGrp == 2 && count == 1){
-                LOG_M(IVPS, "grp is %d, frame resolution is %d x %d", nIvpsGrp, pMediaFrame->tVideoFrame.u32Width, pMediaFrame->tVideoFrame.u32Height);
+        //     // grp2的图像分辨率是640×360
+        //     if (nIvpsGrp == 2 && count == 1){
+        //         LOG_M(IVPS, "grp is %d, frame resolution is %d x %d", nIvpsGrp, pMediaFrame->tVideoFrame.u32Width, pMediaFrame->tVideoFrame.u32Height);
             
+        //         // 失败原因有可能是找不准确yuv存的内存地址、构造yuvImg的高宽和通道不正确、cvtColor的参数不正确
 
-                // pMediaFrameTest = pMediaFrame;
-                // 失败原因有可能是找不准确yuv存的内存地址、构造yuvImg的高宽和通道不正确、cvtColor的参数不正确
+        //         LOG_M(IVPS, "ram address is %d", pMediaFrame->tVideoFrame.u32BlkId[0]);
+        //         LOG_M(IVPS, "ram address is %lld", pMediaFrame->tVideoFrame.u64VirAddr[0]);
+                
+        //         width = pMediaFrame->tVideoFrame.u32Width;
+        //         height = pMediaFrame->tVideoFrame.u32Height;
+                
+        //         // data = reinterpret_cast<unsigned long long int *>(pMediaFrame->tVideoFrame.u64VirAddr[0]);
+        //         // y_plane = (uint8_t *)data;
+        //         y_plane = reinterpret_cast<uchar *>(pMediaFrame->tVideoFrame.u64VirAddr[0]);
 
-                LOG_M(IVPS, "ram address is %d", pMediaFrame->tVideoFrame.u32BlkId[0]);
-                LOG_M(IVPS, "ram address is %lld", pMediaFrame->tVideoFrame.u64VirAddr[0]);
+        //         // cv::Mat yuvImg(height + height / 2, width, CV_8UC3, y_plane);
+        //         cv::Mat yuvImg(height + height / 2, width, CV_8UC1, y_plane);
+        //         // cv::Mat yuvImg(height + height / 2, width, CV_8UC1, pMediaFrame->tVideoFrame.u32BlkId[2]);
                 
-                width = pMediaFrame->tVideoFrame.u32Width;
-                height = pMediaFrame->tVideoFrame.u32Height;
-                // y_plane = (unsigned char *)pMediaFrame->tVideoFrame.u32BlkId[2];
-                // y_plane = reinterpret_cast<uint8_t*>(pMediaFrame->tVideoFrame.u32BlkId[2]);
-                // *data = pMediaFrame->tVideoFrame.u32BlkId[2];
-                // y_plane = reinterpret_cast<uint8_t*>(data);
+        //         cv::Mat bgrImg(height, width, CV_8UC3);
+        //         cv::cvtColor(yuvImg, bgrImg, cv::COLOR_YUV2BGR_NV12);
                 
-                // data = reinterpret_cast<unsigned int *>(pMediaFrame->tVideoFrame.u32BlkId[2]);
-                data = reinterpret_cast<unsigned long long int *>(pMediaFrame->tVideoFrame.u64VirAddr[0]);
-                y_plane = (uint8_t *)data;
+        //         cv::rectangle(bgrImg, {160, 90, 320, 180}, cv::Scalar(0, 0, 255), 2, 1);
+        //         // cv::imwrite("/opt/yang_test/yuv_test/bgrImg.jpg", bgrImg);
 
-                // cv::Mat yuvImg(height + height / 2, width, CV_8UC3, y_plane);
-                cv::Mat yuvImg(height + height / 2, width, CV_8UC1, y_plane);
-                // cv::Mat yuvImg(height + height / 2, width, CV_8UC1, pMediaFrame->tVideoFrame.u32BlkId[2]);
-                
-                cv::Mat bgrImg(height, width, CV_8UC3);
-                cv::cvtColor(yuvImg, bgrImg, cv::COLOR_YUV2BGR_NV12);
-                
-                cv::imwrite("/opt/yang_test/yuv_test/bgrImg.jpg", bgrImg);
+        //         // 先将BGR转换为YUVI420格式，再将I420转换为NV12
+        //         cv::Mat yuvI420Img;
+        //         cv::cvtColor(bgrImg, yuvI420Img, cv::COLOR_BGR2YUV_I420);
+        //         // LOG_M(IVPS, "yuvImg rows:%d, cols:%d", yuvImg.rows, yuvImg.cols);
+        //         // LOG_M(IVPS, "yuvI420Img rows:%d, cols:%d", yuvI420Img.rows, yuvI420Img.cols);
+        //         cv::Mat yuvNV12Img(yuvI420Img.rows, yuvI420Img.cols, CV_8UC1);
+        //         // 复制Y分量
+        //         yuvI420Img.rowRange(0, bgrImg.rows).copyTo(yuvNV12Img.rowRange(0, bgrImg.rows));
+        //         // 交错U和V分量来创建UV分量
+        //         for (int i = 0; i < bgrImg.rows / 4; i++) {
+        //             for (int j = 0; j < yuvI420Img.cols / 2; j++) {
+        //                 yuvNV12Img.at<uchar>(bgrImg.rows + i * 2, j * 2) = yuvI420Img.at<uchar>(bgrImg.rows + i, j);
+        //                 yuvNV12Img.at<uchar>(bgrImg.rows + i * 2 + 1, j * 2) = yuvI420Img.at<uchar>(bgrImg.rows + i, j + yuvI420Img.cols / 2);
+        //                 yuvNV12Img.at<uchar>(bgrImg.rows + i * 2, j * 2 + 1) = yuvI420Img.at<uchar>(bgrImg.rows + bgrImg.rows / 4 + i, j);
+        //                 yuvNV12Img.at<uchar>(bgrImg.rows + i * 2 + 1, j * 2 + 1) = yuvI420Img.at<uchar>(bgrImg.rows + bgrImg.rows / 4 + i, j + yuvI420Img.cols / 2);
+        //             }
+        //         }
 
-                LOG_M(IVPS, "Successfully write yuvImg to /opt/yangt_test/yuv_test/ ???");
-            }
+        //         // 把yuvNV12Img转回bgr写成jpg查看测试结果
+        //         // cv::Mat newBgrImg(height, width, CV_8UC3);
+        //         // cv::cvtColor(yuvNV12Img, newBgrImg, cv::COLOR_YUV2BGR_NV12);
+        //         // cv::imwrite("/opt/yang_test/yuv_test/newBgrImg.jpg", newBgrImg);
+
+        //         memcpy(y_plane, yuvNV12Img.data, (height + height / 2) * width * sizeof(uint8_t));
+
+        //         // LOG_M(IVPS, "Successfully write yuvImg to /opt/yangt_test/yuv_test/ ???");
+        //     }
+        //     count--;
+        // }
+
+        // 测试OpenCV---
+
+
+
+        // 测试YUV转BGR画框后再转YUV+++
+        // if(count > 0){
+        //     count--;
+        // }
+        // else{
+        //     if(nIvpsGrp == 2){
+        //         width = pMediaFrame->tVideoFrame.u32Width;
+        //         height = pMediaFrame->tVideoFrame.u32Height;
+
+        //         // data = reinterpret_cast<unsigned long long int *>(pMediaFrame->tVideoFrame.u64VirAddr[0]);
+        //         // 强制转换为 void *、 uint8_t *、 uchar *都行
+        //         // y_plane = (void *)data;
+        //         // y_plane = (uint8_t *)data;
+        //         // y_plane = (uchar *)data;
+        //         // 其实可以强制转换后直接赋值给y_plane
+        //         y_plane = reinterpret_cast<uchar *>(pMediaFrame->tVideoFrame.u64VirAddr[0]);
+
+        //         cv::Mat yuvImg(height + height / 2, width, CV_8UC1, y_plane);
+        //         cv::Mat bgrImg(height, width, CV_8UC3);
+        //         cv::cvtColor(yuvImg, bgrImg, cv::COLOR_YUV2BGR_NV12);
+
+        //         cv::rectangle(bgrImg, {160, 90, 320, 180}, cv::Scalar(0, 0, 255), 2, 1);
+
+        //         // 先将BGR转换为YUVI420格式，再将I420转换为NV12
+        //         cv::Mat yuvI420Img;
+        //         cv::cvtColor(bgrImg, yuvI420Img, cv::COLOR_BGR2YUV_I420);
+        //         cv::Mat yuvNV12Img(yuvI420Img.rows, yuvI420Img.cols, CV_8UC1);
+        //         // 复制Y分量
+        //         yuvI420Img.rowRange(0, bgrImg.rows).copyTo(yuvNV12Img.rowRange(0, bgrImg.rows));
+        //         // 交错U和V分量来创建UV分量
+        //         /*
+        //             I420：  YYYYYYYY        NV12：  YYYYYYYY
+        //                     YYYYYYYY                YYYYYYYY
+        //                     YYYYYYYY                YYYYYYYY
+        //                     YYYYYYYY                YYYYYYYY
+        //                     UUUUUUUU                UVUVUVUV
+        //                     VVVVVVVV                UVUVUVUV
+        //         */
+        //        // bgrImg.rows表示Y平面行数，因为是4:2:0，即4个Y共用一个U和一个V，所以bgrImg.rows / 4 表示I420中U平面或V平面的行数
+        //         for (int i = 0; i < bgrImg.rows / 4; i++) {
+        //             for (int j = 0; j < yuvI420Img.cols / 2; j++) {
+        //                 yuvNV12Img.at<uchar>(bgrImg.rows + i * 2, j * 2) = yuvI420Img.at<uchar>(bgrImg.rows + i, j);    // I420的U平面的每行的前半行U
+        //                 yuvNV12Img.at<uchar>(bgrImg.rows + i * 2 + 1, j * 2) = yuvI420Img.at<uchar>(bgrImg.rows + i, j + yuvI420Img.cols / 2);  // I420的U平面的每行的后半行U
+        //                 yuvNV12Img.at<uchar>(bgrImg.rows + i * 2, j * 2 + 1) = yuvI420Img.at<uchar>(bgrImg.rows + bgrImg.rows / 4 + i, j);      // I420的V平面的每行的前半行V
+        //                 yuvNV12Img.at<uchar>(bgrImg.rows + i * 2 + 1, j * 2 + 1) = yuvI420Img.at<uchar>(bgrImg.rows + bgrImg.rows / 4 + i, j + yuvI420Img.cols / 2);    // I420的V平面的每行的后半行V
+        //             }
+        //         }
+        //         // memcpy(y_plane, yuvNV12Img.data, (height + height / 2) * width * sizeof(uint8_t));
+        //         memcpy(y_plane, yuvNV12Img.data, (height + height / 2) * width * sizeof(uchar));
+        //     }
+        // }
+
+        // 测试YUV转BGR画框后再转YUV---
+
+
+
+        // 测试OpenCV追踪任务+++
+        if(count > 0){
             count--;
         }
-        // 测试OpenCV---
+        else{
+            g_bOpenCVTrack = AX_TRUE;
+        }
+
+        if(g_bOpenCVTrack && nIvpsGrp == 2){
+            if(tracker){
+                // cvtColor()把bgr图像转换为gray，然后tracker->update()得到bbox
+                y_plane = reinterpret_cast<uchar *>(pMediaFrame->tVideoFrame.u64VirAddr[0]);
+                cv::Mat yuvImg(height + height / 2, width, CV_8UC1, y_plane);
+                cv::Mat bgrImg(height, width, CV_8UC3);
+                cv::cvtColor(yuvImg, bgrImg, cv::COLOR_YUV2BGR_NV12);
+                cv::cvtColor(bgrImg, gray, cv::COLOR_BGR2GRAY);
+
+                bbox = tracker->update(gray);
+
+                // rectangle()用bbox对帧图像画框
+                cv::rectangle(bgrImg, bbox, cv::Scalar(0, 0, 255), 1, 1);
+
+                // 把帧图像从bgr转换回YUV，写回pMediaFrame里
+                cv::Mat yuvI420Img;
+                cv::cvtColor(bgrImg, yuvI420Img, cv::COLOR_BGR2YUV_I420);
+                cv::Mat yuvNV12Img(yuvI420Img.rows, yuvI420Img.cols, CV_8UC1);
+                yuvI420Img.rowRange(0, bgrImg.rows).copyTo(yuvNV12Img.rowRange(0, bgrImg.rows));
+                for (int i = 0; i < bgrImg.rows / 4; i++) {
+                    for (int j = 0; j < yuvI420Img.cols / 2; j++) {
+                        yuvNV12Img.at<uchar>(bgrImg.rows + i * 2, j * 2) = yuvI420Img.at<uchar>(bgrImg.rows + i, j);    // I420的U平面的每行的前半行U
+                        yuvNV12Img.at<uchar>(bgrImg.rows + i * 2 + 1, j * 2) = yuvI420Img.at<uchar>(bgrImg.rows + i, j + yuvI420Img.cols / 2);  // I420的U平面的每行的后半行U
+                        yuvNV12Img.at<uchar>(bgrImg.rows + i * 2, j * 2 + 1) = yuvI420Img.at<uchar>(bgrImg.rows + bgrImg.rows / 4 + i, j);      // I420的V平面的每行的前半行V
+                        yuvNV12Img.at<uchar>(bgrImg.rows + i * 2 + 1, j * 2 + 1) = yuvI420Img.at<uchar>(bgrImg.rows + bgrImg.rows / 4 + i, j + yuvI420Img.cols / 2);    // I420的V平面的每行的后半行V
+                    }
+                }
+                memcpy(y_plane, yuvNV12Img.data, (height + height / 2) * width * sizeof(uchar));
+            }
+            else{
+                // 初始化tracker
+                LOG_M(IVPS, "Init OpenCV Tracker!");
+                // cvtColor()把bgr图像转换为gray，然后tracker->init()
+                width = pMediaFrame->tVideoFrame.u32Width;
+                height = pMediaFrame->tVideoFrame.u32Height;
+                y_plane = reinterpret_cast<uchar *>(pMediaFrame->tVideoFrame.u64VirAddr[0]);
+                cv::Mat yuvImg(height + height / 2, width, CV_8UC1, y_plane);
+                cv::Mat bgrImg(height, width, CV_8UC3);
+                cv::cvtColor(yuvImg, bgrImg, cv::COLOR_YUV2BGR_NV12);
+                cv::cvtColor(bgrImg, gray, cv::COLOR_BGR2GRAY);
+
+                tracker = new FDSSTTracker(true, true, true, true);
+                tracker->init(bbox, gray);
+            }
+        }
+        
+        // 记得delete tracker释放动态内存
+        // 测试OpenCV追踪任务---
 
         gPrintHelper.Add(E_PH_MOD_IVPS, nIvpsGrp, nIvpsChn);
         if (E_END_POINT_JENC == endpintOptions.eEPType) {
@@ -388,6 +526,15 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
             pMediaFrame->FreeMem();
         }
     }
+
+
+    // delete tracker释放动态内存
+    if(tracker && nIvpsGrp == 2){
+        LOG_M(IVPS, "Delete tracker");
+        delete tracker;
+        tracker = nullptr;  // 这个不知道要不要加
+    }
+
 
     LOG_M(IVPS, "[%d][%d] ---", nIvpsGrp, nIvpsChn);
 }
