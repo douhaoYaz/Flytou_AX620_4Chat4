@@ -466,6 +466,8 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
 
                 bbox = tracker->update(gray);
 
+                // StateMachine设置bbox数据
+
                 // rectangle()用bbox对帧图像画框
                 cv::rectangle(bgrImg, bbox, cv::Scalar(0, 0, 255), 1, 1);
 
@@ -498,6 +500,7 @@ AX_VOID CIVPSStage::FrameGetThreadFunc(IVPS_GET_THREAD_PARAM_PTR pThreadParam)
 
                 tracker = new FDSSTTracker(true, true, true, true);
                 tracker->init(bbox, gray);
+                // StateMachine设置正在跟踪
             }
         }
         

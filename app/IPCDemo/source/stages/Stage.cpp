@@ -121,14 +121,16 @@ AX_VOID CStage::ProcessFrameThreadFunc()
 
     while(m_bProcessFrameWorking) {
         pFrame = nullptr;
+        // 花括号{ 和 } 定义了一个代码块的范围，它定义了锁的作用范围。std::unique_lock 的构造函数在进入代码块时获取互斥锁 m_mtxFrameQueue，在代码块结束时（即遇到 }），std::unique_lock 的析构函数会自动被调用，释放之前获取的互斥锁。
         {
-            std::unique_lock<std::mutex> lck(m_mtxFrameQueue);
+            std::unique_lock<std::mutex> lck(m_mtxFrameQueue);  // 上锁。
+            // wait() 函数用来阻塞当前线程，直到条件变量被通知（notify）。当 wait() 被调用时，lck会自动释放锁，允许其他持有同一个互斥锁的线程执行。当条件变量被通知并且 wait() 函数返回时，锁会再次被自动获取。
             m_cvFrameCome.wait(lck, [this]() {
                 // 测试：
                 // if(m_strStageName == "IVPS"){
                 //     LOG_M(m_strStageName.c_str(), "In CStage ProcessFrameThreadFunc() while lock");
                 // }
-                 return (!m_qFrame.empty() || !m_bProcessFrameWorking);
+                 return (!m_qFrame.empty() || !m_bProcessFrameWorking);     // 返回 true 时，wait() 将停止阻塞。
             });
 
             if (!m_bProcessFrameWorking) {
